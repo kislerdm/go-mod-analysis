@@ -1,8 +1,8 @@
-package parsehtml_test
+package gomodanalysis_test
 
 import (
 	_ "embed"
-	"gomodanalysis/cmd/listmodules/parsehtml"
+	"gomodanalysis"
 	"io"
 	"reflect"
 	"strings"
@@ -17,7 +17,7 @@ func TestParseHtml(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		wantO   []parsehtml.HTMLCodeSearchContent
+		wantO   []gomodanalysis.SearchResultHit
 		wantErr bool
 	}{
 		{
@@ -84,7 +84,7 @@ func TestParseHtml(t *testing.T) {
   </div>
 </div>`),
 			},
-			wantO: []parsehtml.HTMLCodeSearchContent{
+			wantO: []gomodanalysis.SearchResultHit{
 				{
 					Repo:     "/trustbloc/edv",
 					FilePath: "/trustbloc/edv/eca059d01e5049f58997f59afbd3a74f572df1de/go.mod",
@@ -324,7 +324,7 @@ func TestParseHtml(t *testing.T) {
                                 </div>
                             </div>`),
 			},
-			wantO: []parsehtml.HTMLCodeSearchContent{
+			wantO: []gomodanalysis.SearchResultHit{
 				{
 					Repo:     "/trustbloc/agent-sdk",
 					FilePath: "/trustbloc/agent-sdk/a66e47e80ee94744786adc153defb636a0aac8ee/cmd/agent-mobile/go.mod",
@@ -343,13 +343,13 @@ func TestParseHtml(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotO, err := parsehtml.ParseHtml(tt.args.v)
+			gotO, err := gomodanalysis.ParseHtmlSearchResults(tt.args.v)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ParseHtml() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ParseHtmlSearchResults() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(gotO, tt.wantO) {
-				t.Errorf("ParseHtml() gotO = %v, want %v", gotO, tt.wantO)
+				t.Errorf("ParseHtmlSearchResults() gotO = %v, want %v", gotO, tt.wantO)
 			}
 		})
 	}

@@ -38,7 +38,7 @@ _The query_:
 https://github.com/search?o=desc&q=module+extension%3Amod+language%3AText&s=indexed&type=Code
 ```
 
-_The tool_: [application codebase](./app/cmd/listmodules)
+_The tool_: [application codebase](./app/cmd/fetchsearchresults)
 
 _Raw data_: see [here](./data/list/2022/10/16/html/)
 

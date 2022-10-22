@@ -2,9 +2,7 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	app "gomodanalysis"
-	"gomodanalysis/cmd/listmodules/parsehtml"
 	"log"
 	"net/http"
 	"os"
@@ -33,6 +31,11 @@ func main() {
 	var doesNotContainData = regexp.MustCompile("next_page disabled")
 
 	client := app.NewClient(app.Configuration{
+		Backoff: &app.Backoff{
+			MaxDelay: 4 * time.Second,
+			MaxSteps: 2,
+		},
+		Verbose: true,
 		Cookies: []*http.Cookie{
 			{
 				Name:     "logged_id",
@@ -73,22 +76,20 @@ func main() {
 		},
 	})
 
-	page := 90
-	for {
-		pageStr := strconv.Itoa(page)
+	skipped := map[string]bool{}
 
+	fetcher := func(pageStr string) bool {
 		log.Println("fetch page" + pageStr)
-
-		query := "https://github.com/search?o=desc&q=module+extension%3Amod+language%3AText&s=indexed&type=Code&p=" + pageStr
-
-		resp, err := client.Fetch(query)
-		if err != nil {
-			if resp.StatusCode == 429 || resp.StatusCode == 400 {
-				log.Println("too many requests, delay and retry")
-			} else {
-				log.Fatalln(err)
-			}
-			continue
+		resp, err := client.Fetch(constructQuery(pageStr))
+		switch err.(type) {
+		case nil:
+			delete(skipped, pageStr)
+		case app.TimeoutError:
+			log.Printf(err.Error() + " skip\n")
+			skipped[pageStr] = true
+			return false
+		default:
+			log.Fatalln(err)
 		}
 
 		var buf bytes.Buffer
@@ -97,38 +98,43 @@ func main() {
 			log.Fatalln(err)
 		}
 
-		if doesNotContainData.Match(buf.Bytes()) {
-			log.Println("stop")
-			break
-		}
-
 		objPath := destinationDir + "page_" + pageStr
 
 		if err := storeObject(buf.Bytes(), objPath+".html"); err != nil {
 			log.Fatalln(err)
 		}
 
-		searchResults, err := parsehtml.ParseHtml(resp.Body)
-		if err != nil {
-			log.Println("error parsing page " + pageStr + " err: " + err.Error())
+		if doesNotContainData.Match(buf.Bytes()) {
+			log.Println("stop")
+			return true
 		}
 
-		if len(searchResults) == 0 {
-			time.Sleep(1 * time.Second)
-			continue
-		}
+		return false
+	}
 
-		b, err := json.Marshal(searchResults)
-		if err != nil {
-			log.Fatalln("error marshaling search results for page " + pageStr + ": " + err.Error())
-		}
+	page := 1
+	if os.Getenv("PAGE") != "" {
+		page, _ = strconv.Atoi(os.Getenv("PAGE"))
+	}
 
-		if err := storeObject(b, objPath+".json"); err != nil {
-			log.Fatalln(err)
+	for {
+		pageStr := strconv.Itoa(page)
+		if fetcher(pageStr) {
+			break
 		}
-
 		page++
 	}
+
+	for len(skipped) > 0 {
+		for pageStr, _ := range skipped {
+			fetcher(pageStr)
+		}
+	}
+
+}
+
+func constructQuery(s string) string {
+	return "https://github.com/search?o=desc&q=module+extension%3Amod+language%3AText&s=indexed&type=Code&p=" + s
 }
 
 func storeObject(data []byte, path string) error {

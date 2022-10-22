@@ -3,6 +3,8 @@ package gomodanalysis
 import (
 	"errors"
 	"io"
+	"log"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -36,6 +38,7 @@ type httpClient interface {
 
 // Configuration Client configurations.
 type Configuration struct {
+	Verbose    bool
 	HTTPClient httpClient
 	Cookies    []*http.Cookie
 	Backoff    *Backoff
@@ -58,15 +61,28 @@ func NewClient(cfg Configuration) *Client {
 
 	if cfg.Backoff == nil {
 		cfg.Backoff = &Backoff{
-			MaxDelay: 10,
-			MaxSteps: 10,
+			MaxDelay: 1 * time.Minute,
+			MaxSteps: 60,
 		}
 	}
 
 	if cfg.HTTPClient == nil {
+		t := &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 5 * time.Second,
+			}).DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		}
 		cfg.HTTPClient = &http.Client{
-			Jar:     jar,
-			Timeout: 5 * time.Second,
+			Jar:       jar,
+			Timeout:   10 * time.Second,
+			Transport: t,
 		}
 	}
 
@@ -75,41 +91,64 @@ func NewClient(cfg Configuration) *Client {
 	}
 }
 
-func (c *Client) do(req *http.Request) (*Response, error) {
+func (c *Client) doAfterLinerDelay(req *http.Request) (*http.Response, error) {
+	d, err := c.cfg.Backoff.LinearDelay()
+	if err != nil {
+		return nil, err
+	}
+	if c.cfg.Verbose && d > 0 {
+		log.Printf("delay for %v sec. and retry", d.Seconds())
+	}
+	time.Sleep(d)
+	return c.cfg.HTTPClient.Do(req)
+}
+
+func (c *Client) do(req *http.Request) (*http.Response, error) {
 	if c.cfg.APIToken != "" {
 		req.Header.Set("Authorization", "bearer "+c.cfg.APIToken)
 	}
 
-	resp, err := c.cfg.HTTPClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	r := Response{Body: resp.Body, StatusCode: resp.StatusCode}
-
-	if r.StatusCode > 209 {
-		d, err := c.cfg.Backoff.LinearDelay()
-		if err != nil {
-			return &r, err
+	for {
+		resp, err := c.doAfterLinerDelay(req)
+		switch err.(type) {
+		case nil:
+			if resp.StatusCode > 209 {
+				c.cfg.Backoff.UpCounter()
+				continue
+			}
+			c.cfg.Backoff.Reset()
+			return resp, nil
+		case (*url.Error):
+			if e, ok := err.(*url.Error); ok {
+				if e.Err == io.EOF || e.Err == io.ErrUnexpectedEOF {
+					c.cfg.Backoff.UpCounter()
+					continue
+				}
+			}
+		case TimeoutError:
+			c.cfg.Backoff.Reset()
+			return nil, err
+		default:
+			c.cfg.Backoff.Reset()
+			return nil, errors.New("c.do: error: " + err.Error())
 		}
-		time.Sleep(d)
-		return c.do(req)
 	}
-
-	return &r, nil
 }
 
-func (c *Client) Fetch(url string) (*Response, error) {
+func (c *Client) Fetch(url string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, err
+		return nil, errors.New(`c.Fetch: http.NewRequest("GET", url, nil) error: ` + err.Error())
 	}
 	return c.do(req)
 }
 
-func (c *Client) GraphQL(query string) (*Response, error) {
+func (c *Client) GraphQL(query string) (*http.Response, error) {
 	req, err := http.NewRequest("POST", c.cfg.GraphQLURL, strings.NewReader(query))
 	if err != nil {
-		return nil, err
+		return nil, errors.New(
+			`c.GraphQL: http.NewRequest("POST", c.cfg.GraphQLURL, strings.NewReader(query)) error: ` + err.Error(),
+		)
 	}
 	return c.do(req)
 }
@@ -122,14 +161,27 @@ type Backoff struct {
 	mu   sync.Mutex
 }
 
+type TimeoutError struct{}
+
+func (e TimeoutError) Error() string {
+	return "max retry delay has been reached"
+}
+
 func (b *Backoff) LinearDelay() (time.Duration, error) {
+	if b.step > b.MaxSteps {
+		return 0, TimeoutError{}
+	}
+	return time.Duration(b.MaxDelay.Nanoseconds() / b.MaxSteps * b.step), nil
+}
+
+func (b *Backoff) UpCounter() {
 	b.mu.Lock()
 	b.step++
 	b.mu.Unlock()
+}
 
-	d := b.MaxDelay.Microseconds() / b.MaxSteps * b.step
-	if d > b.MaxDelay.Microseconds() {
-		return 0, errors.New("max retry delay has been reached")
-	}
-	return time.Duration(d), nil
+func (b *Backoff) Reset() {
+	b.mu.Lock()
+	b.step = 0
+	b.mu.Unlock()
 }
