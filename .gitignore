@@ -1,3 +1,7 @@
 .idea
 .env
 bin
+infrastructure/key.json
+*.terraform*
+data
+tokens*
