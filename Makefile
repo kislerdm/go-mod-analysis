@@ -8,9 +8,17 @@ SERVICE :=
 OS := darwin
 ARCH := arm64
 
+#test -f proto/$(SERVICE).proto && protoc --go_out=$(PWD) proto/$(SERVICE).proto &&\
+
 compile: ## Compiles the app. Parameters: SERVICE, OS, ARCH.
 	@ test -d bin || mkdir bin
 	@ cd app &&\
  		go mod tidy &&\
     		GOOS=$(OS) GOARCH=$(ARCH) go build\
-    			-a -gcflags=all="-l -B -C" -ldflags="-w -s" -o ../bin/$(SERVICE)-$(OS)-$(ARCH) ./cmd/$(SERVICE)/*.go
+    			-a -gcflags=all="-l -B -C" -ldflags="-w -s" -o ../bin/$(SERVICE)-$(OS)-$(ARCH) ./$(SERVICE)/cmd/*.go
+
+test: ## Runs unit tests.
+	@ cd app &&\
+		go mod tidy &&\
+		cd $(SERVICE) &&\
+		go test -v --parallel=8 .

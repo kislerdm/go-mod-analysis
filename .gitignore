@@ -5,3 +5,4 @@ infrastructure/key.json
 *.terraform*
 data
 tokens*
+**/*.pb.go
