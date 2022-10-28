@@ -2,6 +2,7 @@ package indexmodules
 
 import (
 	"bytes"
+	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/bigquery/storage/managedwriter"
 	"cloud.google.com/go/bigquery/storage/managedwriter/adapt"
 	"context"
@@ -24,7 +25,7 @@ type CfgWriter struct {
 
 // Writer IO client to persist data.
 type Writer interface {
-	Store(ctx context.Context, data PersistenceFormat, path string) (numberOfStoredRecords int64, err error)
+	Store(ctx context.Context, data PersistenceFormat, path string) error
 }
 
 type bg struct {
@@ -33,21 +34,22 @@ type bg struct {
 	cfg CfgWriter
 }
 
-func (c bg) Store(ctx context.Context, data PersistenceFormat, path string) (int64, error) {
+func (c bg) Store(ctx context.Context, data PersistenceFormat, path string) error {
 	managedStream, err := c.c.NewManagedStream(ctx,
 		managedwriter.WithDestinationTable("projects/"+c.cfg.projectID+"/"+path),
 		managedwriter.WithSchemaDescriptor(data.Descriptor),
 	)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	result, err := managedStream.AppendRows(ctx, data.Data)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	return result.GetResult(ctx)
+	_, err = result.GetResult(ctx)
+	return err
 }
 
 // NewConfigWriter initialises configuration.
@@ -211,34 +213,6 @@ func ConvertToStoreFormat(v []DataRow) (PersistenceFormat, error) {
 	}, err
 }
 
-func extractTimestampAsString(v RawData) string {
-	// timestamp data length
-	if len(v) < 30 {
-		return ""
-	}
-
-	shiftLeft := len(v) - 29
-	for {
-		if v[shiftLeft] == '2' {
-			break
-		}
-		shiftLeft++
-	}
-
-	shiftRight := len(v) - 1
-	for {
-		if v[shiftRight] == 'Z' {
-			shiftRight++
-			break
-		}
-		shiftRight--
-	}
-
-	cut := v[shiftLeft:shiftRight]
-
-	return *(*string)(unsafe.Pointer(&cut))
-}
-
 type Reader interface {
 	Fetch(query map[string]string) (RawData, error)
 }
@@ -317,5 +291,32 @@ func NewReader(cfg ...CfgReader) Reader {
 
 // GetLastPaginationIndex returns the last fetched page.
 func GetLastPaginationIndex() string {
-	return os.Getenv("GET_LAST_TIMESTAMP")
+	const q = `SELECT FORMAT_TIMESTAMP('%FT%R:%E*SZ', MAX(timestamp), 'UTC') AS last_ts FROM ` +
+		"`go-mod-analysis.raw.index`;"
+
+	ctx := context.Background()
+	c, err := bigquery.NewClient(ctx, os.Getenv("PROJECT_ID"))
+	defer func() {
+		_ = c.Close()
+	}()
+
+	if err != nil {
+		return ""
+	}
+
+	it, err := c.Query(q).Read(ctx)
+	if err != nil {
+		return ""
+	}
+
+	var v []bigquery.Value
+	err = it.Next(&v)
+	if err != nil {
+		return ""
+	}
+	if o, ok := v[0].(string); ok {
+		return o
+	}
+
+	return ""
 }

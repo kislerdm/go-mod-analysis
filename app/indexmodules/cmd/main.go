@@ -57,11 +57,10 @@ func main() {
 			log.Fatalln(err)
 		}
 
-		rowsRecorded, err := writer.Store(ctx, output, pathOut)
+		err = writer.Store(ctx, output, pathOut)
 		if err != nil {
 			log.Fatalln(err)
 		}
-		log.Printf("%v recorded\n", rowsRecorded)
 
 		q["since"] = d[len(d)-1].Timestamp
 	}
