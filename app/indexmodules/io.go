@@ -249,7 +249,7 @@ func (c clientReader) Fetch(query map[string]string) (RawData, error) {
 
 	resp, err := c.Cfg.HttpClient.Get(url)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
 
 	if resp.StatusCode > 209 {
