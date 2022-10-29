@@ -18,7 +18,8 @@ resource "google_bigquery_table" "index" {
   description   = "Data from https://index.golang.org/"
 
   time_partitioning {
-    type = "DAY"
+    type          = "DAY"
+    expiration_ms = 0
   }
 
   deletion_protection = false
