@@ -52,6 +52,11 @@ func main() {
 			log.Fatalln(err)
 		}
 
+		if d[len(d)-1].Timestamp == q["since"] {
+			log.Println("done")
+			break
+		}
+
 		output, err := indexmodules.ConvertToStoreFormat(d)
 		if err != nil {
 			log.Fatalln(err)
