@@ -4,7 +4,6 @@ go 1.19
 
 require (
 	cloud.google.com/go/bigquery v1.43.0
-	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b
 	google.golang.org/protobuf v1.28.1
 )
 
@@ -19,6 +18,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.2.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.6.0 // indirect
 	go.opencensus.io v0.23.0 // indirect
+	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b // indirect
 	golang.org/x/oauth2 v0.0.0-20221006150949-b44042a4b9c1 // indirect
 	golang.org/x/sync v0.0.0-20220929204114-8fcdb60fdcc0 // indirect
 	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
