@@ -55,4 +55,4 @@ flowchart TD
 
 The [Go module index](https://index.golang.org/) is used to list modules for analysis.
 
-_The tool_: [application codebase](./app/cmd/indexmodules/main.go)
+_The tool_: [application codebase](./app/indexmodules)
