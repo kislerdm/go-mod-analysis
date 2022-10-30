@@ -30,6 +30,8 @@ _The tool_: [application codebase](pipeline/indexmodules)
 
 Applications to define [BigQuery UDF](https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions).
 
-### Moduleversion
+### Moduleversions
 
 The app to extract `min` and `max` module version given the array of its versions.
+
+_The tool_: [applaication codebase](udf/moduleversions)
