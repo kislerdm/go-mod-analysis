@@ -7,27 +7,17 @@ terraform {
     }
   }
   backend "gcs" {
-    credentials = "key.json"
-    bucket      = "com-dkisler-terraform"
-    prefix      = "go-mod-analysis"
+    bucket = "com-dkisler-sys-go-mod-analysis"
+    prefix = "terraform"
   }
 }
 
 locals {
-  region   = "us-central1"
-  projects = toset(["go-mod-analysis"])
+  region = "us-central1"
 }
 
 provider "google" {
-  project = "dkisler-root"
+  project = "go-mod-analysis"
   region  = local.region
   zone    = "us-central1-c"
-}
-
-resource "google_project" "this" {
-  for_each        = local.projects
-  name            = each.key
-  project_id      = each.key
-  org_id          = var.org_id
-  billing_account = var.billing_account
 }
