@@ -1,4 +1,4 @@
-module gomodanalysis
+module github.com/kislerdm/gomodanalysis/app/pipeline
 
 go 1.19
 

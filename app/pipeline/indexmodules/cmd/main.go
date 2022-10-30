@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"gomodanalysis/indexmodules"
+	"github.com/kislerdm/gomodanalysis/app/pipeline/indexmodules"
 	"log"
 	"os"
 )

@@ -1,7 +1,7 @@
 package indexmodules
 
 import (
-	"gomodanalysis/indexmodules/model"
+	"github.com/kislerdm/gomodanalysis/app/pipeline/indexmodules/model"
 	"reflect"
 	"testing"
 	"time"

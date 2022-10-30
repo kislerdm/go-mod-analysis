@@ -1,4 +1,4 @@
-package gomodanalysis
+package pipeline
 
 import (
 	"testing"

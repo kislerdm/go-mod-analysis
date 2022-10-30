@@ -68,8 +68,6 @@ flowchart TD
     click Map "#index-modules"
 ```
 
-### Index modules
+## Applications
 
-The [Go module index](https://index.golang.org/) is used to list modules for analysis.
-
-_The tool_: [application codebase](./app/indexmodules)
+The apps for ETL/ELT and analytics are stored [here](app).  
