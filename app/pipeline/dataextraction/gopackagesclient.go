@@ -1,8 +1,13 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
+
+	"golang.org/x/net/html"
 )
 
 type httpClient interface {
@@ -22,14 +27,14 @@ type ModuleImports struct {
 
 // GetImports extracts the modules imported by the given module identified by the name.
 func (c GoPackagesClient) GetImports(name string) (ModuleImports, error) {
-	b, err := c.get(name + "?tag=imports")
+	r, err := c.get(name + "?tag=imports")
 	if err != nil {
 		return ModuleImports{}, err
 	}
-	return parseHTMLGoPackageImports(b)
+	return parseHTMLGoPackageImports(r)
 }
 
-func parseHTMLGoPackageImports(b []byte) (ModuleImports, error) {
+func parseHTMLGoPackageImports(r io.Reader) (ModuleImports, error) {
 	panic("todo")
 }
 
@@ -38,18 +43,46 @@ type ModuleImportedBy []string
 
 // GetImportedBy extracts the modules importing the given module identified by the name.
 func (c GoPackagesClient) GetImportedBy(name string) (ModuleImportedBy, error) {
-	b, err := c.get(name + "?tag=importedby")
+	r, err := c.get(name + "?tag=importedby")
 	if err != nil {
 		return ModuleImportedBy{}, err
 	}
-	return parseHTMLGoPackageImportedBy(b)
+	return parseHTMLGoPackageImportedBy(r)
 }
 
-func parseHTMLGoPackageImportedBy(b []byte) (ModuleImportedBy, error) {
-	panic("todo")
+func parseHTMLGoPackageImportedBy(r io.Reader) (ModuleImportedBy, error) {
+	doc, err := html.Parse(r)
+	if err != nil {
+		return nil, err
+	}
+
+	var o ModuleImportedBy
+
+	var f func(*html.Node)
+
+	f = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "a" {
+			for _, a := range n.Attr {
+				if a.Key == "class" && a.Val == "u-breakWord" {
+					for _, a := range n.Attr {
+						if a.Key == "href" {
+							o = append(o, strings.TrimPrefix(a.Val, "/"))
+						}
+					}
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			f(c)
+		}
+	}
+
+	f(doc)
+
+	return o, nil
 }
 
-func (c GoPackagesClient) get(route string) ([]byte, error) {
+func (c GoPackagesClient) get(route string) (io.Reader, error) {
 	const URL = "https://pkg.go.dev"
 	res, err := c.HTTPClient.Get(URL + "/" + route)
 	if err != nil {
@@ -57,10 +90,8 @@ func (c GoPackagesClient) get(route string) ([]byte, error) {
 	}
 
 	if res.StatusCode > 209 {
-		panic("to handle status code beyond 209")
+		return nil, errors.New(res.Status + "; status code: " + strconv.Itoa(res.StatusCode))
 	}
 
-	defer func() { _ = res.Body.Close() }()
-
-	return io.ReadAll(res.Body)
+	return res.Body, nil
 }
