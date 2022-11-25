@@ -35,7 +35,61 @@ func (c GoPackagesClient) GetImports(name string) (ModuleImports, error) {
 }
 
 func parseHTMLGoPackageImports(r io.Reader) (ModuleImports, error) {
-	panic("todo")
+	doc, err := html.Parse(r)
+	if err != nil {
+		return ModuleImports{}, err
+	}
+
+	var (
+		f           func(*html.Node)
+		ulNodesList []*html.Node
+	)
+
+	f = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "ul" {
+			for _, a := range n.Attr {
+				if a.Key == "class" && a.Val == "Imports-list" {
+					ulNodesList = append(ulNodesList, n)
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			f(c)
+		}
+	}
+
+	f(doc)
+
+	var scanUlNodes func(n *html.Node, o []string)
+	scanUlNodes = func(n *html.Node, o []string) {
+		if n.Type == html.ElementNode && n.Data == "a" {
+			for _, a := range n.Attr {
+				if a.Key == "href" {
+					o = append(o, strings.TrimPrefix(a.Val, "/"))
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			scanUlNodes(c, o)
+		}
+	}
+
+	o := ModuleImports{
+		Std:    []string{},
+		NonStd: []string{},
+	}
+
+	switch len(ulNodesList) {
+	case 1:
+		scanUlNodes(ulNodesList[0], o.Std)
+	case 2:
+		scanUlNodes(ulNodesList[0], o.NonStd)
+		scanUlNodes(ulNodesList[1], o.Std)
+	default:
+		return ModuleImports{}, errors.New("unknown HTML content")
+	}
+
+	return o, nil
 }
 
 // ModuleImportedBy contains the modules which import the given module.
