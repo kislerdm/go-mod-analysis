@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option go_package = "dataextraction/model";
+
+message PkgGoDev {
+  message Imports {
+    repeated string std = 1;
+    repeated string nonstd = 2;
+  }
+  string path = 1;
+  string version = 2;
+  Imports imports = 3;
+  repeated string importedby = 4;
+  int64 timestamp = 5;
+}
