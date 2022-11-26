@@ -34,7 +34,7 @@ func (c GoPackagesClient) GetImports(name string) (ModuleImports, error) {
 	return parseHTMLGoPackageImports(r)
 }
 
-func parseHTMLGoPackageImports(r io.Reader) (ModuleImports, error) {
+func parseHTMLGoPackageImports(r io.ReadCloser) (ModuleImports, error) {
 	doc, err := html.Parse(r)
 	if err != nil {
 		return ModuleImports{}, err
@@ -108,7 +108,7 @@ func (c GoPackagesClient) GetImportedBy(name string) (ModuleImportedBy, error) {
 	return parseHTMLGoPackageImportedBy(r)
 }
 
-func parseHTMLGoPackageImportedBy(r io.Reader) (ModuleImportedBy, error) {
+func parseHTMLGoPackageImportedBy(r io.ReadCloser) (ModuleImportedBy, error) {
 	doc, err := html.Parse(r)
 	if err != nil {
 		return nil, err
@@ -140,7 +140,7 @@ func parseHTMLGoPackageImportedBy(r io.Reader) (ModuleImportedBy, error) {
 	return o, nil
 }
 
-func (c GoPackagesClient) get(route string) (io.Reader, error) {
+func (c GoPackagesClient) get(route string) (io.ReadCloser, error) {
 	const URL = "https://pkg.go.dev"
 	res, err := c.HTTPClient.Get(URL + "/" + route)
 	if err != nil {

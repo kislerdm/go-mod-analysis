@@ -64,7 +64,7 @@ func TestGoPackagesClient_get(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		want    []byte
+		want    io.Reader
 		wantErr bool
 	}{
 		{
@@ -73,7 +73,7 @@ func TestGoPackagesClient_get(t *testing.T) {
 			args: args{
 				route: "go-dockerclient?tag=imports",
 			},
-			want:    wantImports,
+			want:    io.NopCloser(bytes.NewReader(wantImports)),
 			wantErr: false,
 		},
 		{
@@ -82,7 +82,7 @@ func TestGoPackagesClient_get(t *testing.T) {
 			args: args{
 				route: "go-dockerclient?tag=importedby",
 			},
-			want:    wantImportedBy,
+			want:    io.NopCloser(bytes.NewReader(wantImportedBy)),
 			wantErr: false,
 		},
 		{
@@ -119,7 +119,7 @@ var wantImportedBy []byte
 
 func Test_parseHTMLGoPackageImportedBy(t *testing.T) {
 	type args struct {
-		r io.Reader
+		r io.ReadCloser
 	}
 	tests := []struct {
 		name    string
@@ -129,7 +129,7 @@ func Test_parseHTMLGoPackageImportedBy(t *testing.T) {
 	}{
 		{
 			name: "happy path: 8 packages",
-			args: args{bytes.NewReader(wantImportedBy)},
+			args: args{io.NopCloser(bytes.NewReader(wantImportedBy))},
 			want: ModuleImportedBy{
 				"bitbucket.org/blackxcloudeng/infra/common/docker",
 				"bitbucket.org/blackxcloudeng/infra/prog/weaver",
@@ -213,7 +213,7 @@ var wantImports []byte
 
 func Test_parseHTMLGoPackageImports(t *testing.T) {
 	type args struct {
-		r io.Reader
+		r io.ReadCloser
 	}
 	tests := []struct {
 		name    string
@@ -223,7 +223,7 @@ func Test_parseHTMLGoPackageImports(t *testing.T) {
 	}{
 		{
 			name: "happy path",
-			args: args{bytes.NewReader(wantImports)},
+			args: args{io.NopCloser(bytes.NewReader(wantImports))},
 			want: ModuleImports{
 				Std: []string{
 					"bufio",
@@ -239,7 +239,7 @@ func Test_parseHTMLGoPackageImports(t *testing.T) {
 					"math",
 					"net",
 					"net/http",
-					"http/httputil",
+					"net/http/httputil",
 					"net/url",
 					"os",
 					"os/exec",
@@ -277,6 +277,86 @@ func Test_parseHTMLGoPackageImports(t *testing.T) {
 				}
 				if !reflect.DeepEqual(got, tt.want) {
 					t.Errorf("parseHTMLGoPackageImports() got = %v, want %v", got, tt.want)
+				}
+			},
+		)
+	}
+}
+
+func TestGoPackagesClient_GetImports(t *testing.T) {
+	type fields struct {
+		HTTPClient httpClient
+	}
+	type args struct {
+		name string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    ModuleImports
+		wantErr bool
+	}{
+		{
+			name:   "happy path: std and non-std packages",
+			fields: fields{mockHTTP{}},
+			args:   args{"foo"},
+			want: ModuleImports{
+				Std: []string{
+					"bufio",
+					"bytes",
+					"context",
+					"crypto/tls",
+					"crypto/x509",
+					"encoding/base64",
+					"encoding/json",
+					"errors",
+					"fmt",
+					"io",
+					"math",
+					"net",
+					"net/http",
+					"net/http/httputil",
+					"net/url",
+					"os",
+					"os/exec",
+					"path",
+					"path/filepath",
+					"reflect",
+					"runtime",
+					"strconv",
+					"strings",
+					"sync",
+					"sync/atomic",
+					"time",
+				},
+				NonStd: []string{
+					"github.com/docker/docker/api/types/registry",
+					"github.com/docker/docker/api/types/swarm",
+					"github.com/docker/docker/pkg/archive",
+					"github.com/docker/docker/pkg/fileutils",
+					"github.com/docker/docker/pkg/homedir",
+					"github.com/docker/docker/pkg/jsonmessage",
+					"github.com/docker/docker/pkg/stdcopy",
+					"github.com/docker/go-units",
+				},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				c := GoPackagesClient{
+					HTTPClient: tt.fields.HTTPClient,
+				}
+				got, err := c.GetImports(tt.args.name)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("GetImports() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("GetImports() got = %v, want %v", got, tt.want)
 				}
 			},
 		)
