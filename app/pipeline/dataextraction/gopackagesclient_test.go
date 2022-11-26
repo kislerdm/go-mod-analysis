@@ -222,27 +222,27 @@ func Test_parseHTMLGoPackageImports(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "happy path",
-			args:    args{bytes.NewReader(wantImports)},
-			want:    ModuleImports{
-				Std:    []string{
-					">bufio
-					">bytes
-					">context
-					crypto/tls
-					crypto/x509
-					encoding/base64
-					encoding/json
-					">errors
-					">fmt
-					">io
-					">math
-					">net
-					net/http
-					http/httputil
-					net/url
-					">os
-					os/exec
+			name: "happy path",
+			args: args{bytes.NewReader(wantImports)},
+			want: ModuleImports{
+				Std: []string{
+					"bufio",
+					"bytes",
+					"context",
+					"crypto/tls",
+					"crypto/x509",
+					"encoding/base64",
+					"encoding/json",
+					"errors",
+					"fmt",
+					"io",
+					"math",
+					"net",
+					"net/http",
+					"http/httputil",
+					"net/url",
+					"os",
+					"os/exec",
 					"path",
 					"path/filepath",
 					"reflect",
@@ -253,7 +253,16 @@ func Test_parseHTMLGoPackageImports(t *testing.T) {
 					"sync/atomic",
 					"time",
 				},
-				NonStd: nil,
+				NonStd: []string{
+					"github.com/docker/docker/api/types/registry",
+					"github.com/docker/docker/api/types/swarm",
+					"github.com/docker/docker/pkg/archive",
+					"github.com/docker/docker/pkg/fileutils",
+					"github.com/docker/docker/pkg/homedir",
+					"github.com/docker/docker/pkg/jsonmessage",
+					"github.com/docker/docker/pkg/stdcopy",
+					"github.com/docker/go-units",
+				},
 			},
 			wantErr: false,
 		},
