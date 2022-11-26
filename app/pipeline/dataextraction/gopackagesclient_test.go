@@ -114,7 +114,7 @@ func TestGoPackagesClient_get(t *testing.T) {
 	}
 }
 
-//go:embed fixtures/foo/importedby.html
+//go:embed fixtures/bar/importedby.html
 var wantImportedBy []byte
 
 func Test_parseHTMLGoPackageImportedBy(t *testing.T) {
@@ -175,7 +175,7 @@ func TestGoPackagesClient_GetImportedBy(t *testing.T) {
 		{
 			name:   "happy path: 8 packages",
 			fields: fields{mockHTTP{}},
-			args:   args{"foo"},
+			args:   args{"bar"},
 			want: ModuleImportedBy{
 				"bitbucket.org/blackxcloudeng/infra/common/docker",
 				"bitbucket.org/blackxcloudeng/infra/prog/weaver",
@@ -208,7 +208,7 @@ func TestGoPackagesClient_GetImportedBy(t *testing.T) {
 	}
 }
 
-//go:embed fixtures/foo/imports.html
+//go:embed fixtures/bar/imports.html
 var wantImports []byte
 
 func Test_parseHTMLGoPackageImports(t *testing.T) {
@@ -298,9 +298,45 @@ func TestGoPackagesClient_GetImports(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:   "happy path: std and non-std packages",
+			name:   "happy path: std only",
 			fields: fields{mockHTTP{}},
 			args:   args{"foo"},
+			want: ModuleImports{
+				Std: []string{
+					"bufio",
+					"bytes",
+					"context",
+					"crypto/tls",
+					"crypto/x509",
+					"encoding/base64",
+					"encoding/json",
+					"errors",
+					"fmt",
+					"io",
+					"math",
+					"net",
+					"net/http",
+					"net/http/httputil",
+					"net/url",
+					"os",
+					"os/exec",
+					"path",
+					"path/filepath",
+					"reflect",
+					"runtime",
+					"strconv",
+					"strings",
+					"sync",
+					"sync/atomic",
+					"time",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:   "happy path: std and non-std",
+			fields: fields{mockHTTP{}},
+			args:   args{"bar"},
 			want: ModuleImports{
 				Std: []string{
 					"bufio",
