@@ -10,13 +10,13 @@ import (
 	"golang.org/x/net/html"
 )
 
-type httpClient interface {
+type HttpClient interface {
 	Get(url string) (*http.Response, error)
 }
 
 // GoPackagesClient client to extract data from https://pkg.go.dev.
 type GoPackagesClient struct {
-	HTTPClient httpClient
+	HTTPClient HttpClient
 }
 
 // ModuleImports contains the modules imported by the given module.
@@ -26,12 +26,18 @@ type ModuleImports struct {
 }
 
 // GetImports extracts the modules imported by the given module identified by the name.
+// The name with version concatenated with the @ sign is acceptable: {{name}}@{{version}}
 func (c GoPackagesClient) GetImports(name string) (ModuleImports, error) {
 	r, err := c.get(name + "?tag=imports")
+	defer func() { _ = r.Close() }()
 	if err != nil {
 		return ModuleImports{}, err
 	}
-	return parseHTMLGoPackageImports(r)
+	o, err := parseHTMLGoPackageImports(r)
+	if err != nil {
+		return ModuleImports{}, err
+	}
+	return o, nil
 }
 
 func parseHTMLGoPackageImports(r io.ReadCloser) (ModuleImports, error) {
@@ -100,12 +106,18 @@ func parseHTMLGoPackageImports(r io.ReadCloser) (ModuleImports, error) {
 type ModuleImportedBy []string
 
 // GetImportedBy extracts the modules importing the given module identified by the name.
+// The name with version concatenated with the @ sign is acceptable: {{name}}@{{version}}
 func (c GoPackagesClient) GetImportedBy(name string) (ModuleImportedBy, error) {
 	r, err := c.get(name + "?tag=importedby")
+	defer func() { _ = r.Close() }()
 	if err != nil {
 		return ModuleImportedBy{}, err
 	}
-	return parseHTMLGoPackageImportedBy(r)
+	o, err := parseHTMLGoPackageImportedBy(r)
+	if err != nil {
+		return ModuleImportedBy{}, err
+	}
+	return o, nil
 }
 
 func parseHTMLGoPackageImportedBy(r io.ReadCloser) (ModuleImportedBy, error) {
@@ -130,6 +142,118 @@ func parseHTMLGoPackageImportedBy(r io.ReadCloser) (ModuleImportedBy, error) {
 				}
 			}
 		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			f(c)
+		}
+	}
+
+	f(doc)
+
+	return o, nil
+}
+
+type Meta struct {
+	Version                    string
+	License                    string
+	Repository                 string
+	IsModule                   bool
+	IsLatestVersion            bool
+	IsValidGoMod               bool
+	WithRedistributableLicense bool
+	IsTaggedVersion            bool
+	IsStableVersion            bool
+}
+
+// GetMeta extracts the module's metadata:
+func (c GoPackagesClient) GetMeta(name string) (Meta, error) {
+	r, err := c.get(name)
+	defer func() { _ = r.Close() }()
+	if err != nil {
+		return Meta{}, err
+	}
+
+	o, err := parseHTMLGoPackageMain(r)
+	if err != nil {
+		return Meta{}, err
+	}
+	return o, nil
+}
+
+func parseHTMLGoPackageMain(r io.ReadCloser) (Meta, error) {
+	doc, err := html.Parse(r)
+	if err != nil {
+		return Meta{}, err
+	}
+
+	var (
+		o              Meta
+		f              func(*html.Node)
+		cntFlagSummary uint8
+	)
+
+	extractFlagFromSummary := func(n *html.Node) bool {
+		if n.NextSibling.Data == "img" {
+			for _, a := range n.NextSibling.Attr {
+				if a.Key == "alt" {
+					return a.Val == "checked"
+				}
+			}
+		}
+		return false
+	}
+
+	f = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			switch n.Data {
+			case "a":
+				for _, a := range n.Attr {
+					if a.Key == "data-test-id" && a.Val == "UnitHeader-license" {
+						o.License = n.LastChild.Data
+					}
+					if a.Key == "href" && a.Val == "?tab=versions" {
+						o.Version = "v" + strings.Split(n.LastChild.Data, "v")[1]
+					}
+				}
+			case "span":
+				for _, a := range n.Attr {
+					if a.Key == "class" {
+						if a.Val == "go-Chip DetailsHeader-span--latest" {
+							o.IsLatestVersion = n.LastChild.Data == "Latest"
+						}
+						if a.Val == "go-Chip go-Chip--inverted" && n.LastChild.Data == "module" {
+							o.IsModule = true
+						}
+					}
+				}
+			case "summary":
+				for _, a := range n.Attr {
+					if a.Key == "class" && a.Val == "go-textSubtle" {
+						switch cntFlagSummary {
+						case 0:
+							o.IsValidGoMod = extractFlagFromSummary(n.FirstChild)
+						case 1:
+							o.WithRedistributableLicense = extractFlagFromSummary(n.FirstChild)
+						case 2:
+							o.IsTaggedVersion = extractFlagFromSummary(n.FirstChild)
+						case 3:
+							o.IsStableVersion = extractFlagFromSummary(n.FirstChild)
+						}
+						cntFlagSummary++
+					}
+				}
+			case "div":
+				for _, a := range n.Attr {
+					if a.Key == "class" && a.Val == "UnitMeta-repo" {
+						for _, aa := range n.FirstChild.NextSibling.Attr {
+							if aa.Key == "href" {
+								o.Repository = aa.Val
+							}
+						}
+					}
+				}
+			}
+		}
+
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
 			f(c)
 		}

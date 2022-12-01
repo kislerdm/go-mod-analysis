@@ -21,8 +21,11 @@ func (c mockHTTP) Get(s string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	b, err := fixtures.ReadFile("fixtures" + u.Path + "/" + u.Query()["tag"][0] + ".html")
+	p := "main"
+	if len(u.Query()["tag"]) > 0 {
+		p = u.Query()["tag"][0]
+	}
+	b, err := fixtures.ReadFile("fixtures" + u.Path + "/" + p + ".html")
 	switch err {
 	case nil:
 		return &http.Response{
@@ -55,7 +58,7 @@ func TestGoPackagesClient_get(t *testing.T) {
 	}
 
 	type fields struct {
-		HTTPClient httpClient
+		HTTPClient HttpClient
 	}
 	type args struct {
 		route string
@@ -160,7 +163,7 @@ func Test_parseHTMLGoPackageImportedBy(t *testing.T) {
 
 func TestGoPackagesClient_GetImportedBy(t *testing.T) {
 	type fields struct {
-		HTTPClient httpClient
+		HTTPClient HttpClient
 	}
 	type args struct {
 		name string
@@ -285,7 +288,7 @@ func Test_parseHTMLGoPackageImports(t *testing.T) {
 
 func TestGoPackagesClient_GetImports(t *testing.T) {
 	type fields struct {
-		HTTPClient httpClient
+		HTTPClient HttpClient
 	}
 	type args struct {
 		name string
@@ -393,6 +396,103 @@ func TestGoPackagesClient_GetImports(t *testing.T) {
 				}
 				if !reflect.DeepEqual(got, tt.want) {
 					t.Errorf("GetImports() got = %v, want %v", got, tt.want)
+				}
+			},
+		)
+	}
+}
+
+//go:embed fixtures/go-dockerclient/main.html
+var wantMain []byte
+
+func Test_parseHTMLGoPackageMain(t *testing.T) {
+	type args struct {
+		r io.ReadCloser
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    Meta
+		wantErr bool
+	}{
+		{
+			name: "happy path",
+			args: args{io.NopCloser(bytes.NewReader(wantMain))},
+			want: Meta{
+				Version:                    "v1.9.0",
+				License:                    "BSD-2-Clause",
+				Repository:                 "https://github.com/fsouza/go-dockerclient",
+				IsModule:                   true,
+				IsLatestVersion:            true,
+				IsValidGoMod:               true,
+				WithRedistributableLicense: true,
+				IsTaggedVersion:            true,
+				IsStableVersion:            true,
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				got, err := parseHTMLGoPackageMain(tt.args.r)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("parseHTMLGoPackageMain() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("parseHTMLGoPackageMain() got = %v, want %v", got, tt.want)
+				}
+			},
+		)
+	}
+}
+
+func TestGoPackagesClient_GetMeta(t *testing.T) {
+	type fields struct {
+		HTTPClient HttpClient
+	}
+	type args struct {
+		name string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    Meta
+		wantErr bool
+	}{
+		{
+			name:   "happy path",
+			fields: fields{mockHTTP{}},
+			args:   args{"go-dockerclient"},
+			want: Meta{
+				Version:                    "v1.9.0",
+				License:                    "BSD-2-Clause",
+				Repository:                 "https://github.com/fsouza/go-dockerclient",
+				IsModule:                   true,
+				IsLatestVersion:            true,
+				IsValidGoMod:               true,
+				WithRedistributableLicense: true,
+				IsTaggedVersion:            true,
+				IsStableVersion:            true,
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(
+			tt.name, func(t *testing.T) {
+				c := GoPackagesClient{
+					HTTPClient: tt.fields.HTTPClient,
+				}
+				got, err := c.GetMeta(tt.args.name)
+				if (err != nil) != tt.wantErr {
+					t.Errorf("GetMeta() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+				if !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("GetMeta() got = %v, want %v", got, tt.want)
 				}
 			},
 		)

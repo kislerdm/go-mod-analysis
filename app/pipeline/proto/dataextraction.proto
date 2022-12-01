@@ -3,13 +3,26 @@ syntax = "proto3";
 option go_package = "dataextraction/model";
 
 message PkgGoDev {
+  message Meta {
+    string licence = 1;
+    string repository = 2;
+    bool is_module = 3;
+    bool is_latest_version = 4;
+    bool is_valid_go_mod = 5;
+    bool with_redistributable_license = 6;
+    bool is_tagged_version = 7;
+    bool is_stable_version = 8;
+  }
+
   message Imports {
     repeated string std = 1;
     repeated string nonstd = 2;
   }
+
   string path = 1;
   string version = 2;
-  Imports imports = 3;
-  repeated string importedby = 4;
-  int64 timestamp = 5;
+  Meta meta = 3;
+  Imports imports = 4;
+  repeated string importedby = 5;
+  int64 timestamp = 6;
 }
