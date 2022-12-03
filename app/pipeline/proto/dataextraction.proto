@@ -4,7 +4,7 @@ option go_package = "dataextraction/model";
 
 message PkgGoDev {
   message Meta {
-    string licence = 1;
+    string license = 1;
     string repository = 2;
     bool is_module = 3;
     bool is_latest_version = 4;

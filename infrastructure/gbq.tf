@@ -108,6 +108,62 @@ resource "google_bigquery_table" "pkggodev" {
     "description": "The module version"
   },
   {
+    "name": "meta",
+    "type": "RECORD",
+    "mode": "REQUIRED",
+    "description": "Meta data of the given module",
+    "fields": [
+      {
+        "name": "license",
+        "type": "STRING",
+        "mode": "REQUIRED",
+        "description": "The license under which the module is distributed"
+      },
+      {
+        "name": "repository",
+        "type": "STRING",
+        "mode": "REQUIRED",
+        "description": "Repo with the module's codebase"
+      },
+      {
+        "name": "is_module",
+        "type": "BOOLEAN",
+        "mode": "REQUIRED",
+        "description": "Flags if the package is a module"
+      },
+      {
+        "name": "is_latest_version",
+        "type": "BOOLEAN",
+        "mode": "REQUIRED",
+        "description": "Flags if it is the latest version of the module"
+      },
+      {
+        "name": "is_valid_go_mod",
+        "type": "BOOLEAN",
+        "mode": "REQUIRED",
+        "description": "Flags if the module has a valid go.mod"
+      },
+      {
+        "name": "with_redistributable_license",
+        "type": "BOOLEAN",
+        "mode": "REQUIRED",
+        "description": "Flags if the module is distributed under the redistributable license"
+      },
+      {
+        "name": "is_tagged_version",
+        "type": "BOOLEAN",
+        "mode": "REQUIRED",
+        "description": "Flags if the module is tagged"
+      },
+      {
+        "name": "is_stable_version",
+        "type": "BOOLEAN",
+        "mode": "REQUIRED",
+        "description": "Flags if the version is stable, i.e. at least 1.0.0"
+      }
+    ]
+  },
+  {
     "name": "imports",
     "type": "RECORD",
     "mode": "REQUIRED",

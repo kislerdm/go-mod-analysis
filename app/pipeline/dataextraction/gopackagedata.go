@@ -5,7 +5,10 @@ import (
 	"sync"
 	"time"
 
+	"cloud.google.com/go/bigquery/storage/managedwriter/adapt"
 	"github.com/kislerdm/gomodanalysis/app/pipeline/dataextraction/model"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 type PkgData struct {
@@ -15,27 +18,42 @@ type PkgData struct {
 	importedBy ModuleImportedBy
 }
 
-func (d PkgData) ToGBQ() *model.PkgGoDev {
-	return &model.PkgGoDev{
-		Path:    d.path,
-		Version: d.meta.Version,
-		Meta: &model.PkgGoDev_Meta{
-			Licence:                    d.meta.License,
-			Repository:                 d.meta.Repository,
-			IsModule:                   d.meta.IsModule,
-			IsLatestVersion:            d.meta.IsLatestVersion,
-			IsValidGoMod:               d.meta.IsValidGoMod,
-			WithRedistributableLicense: d.meta.WithRedistributableLicense,
-			IsTaggedVersion:            d.meta.IsTaggedVersion,
-			IsStableVersion:            d.meta.IsStableVersion,
-		},
-		Imports: &model.PkgGoDev_Imports{
-			Std:    d.imports.Std,
-			Nonstd: d.imports.NonStd,
-		},
-		Importedby: d.importedBy,
-		Timestamp:  time.Now().UTC().UnixMilli(),
+func (d PkgData) Descriptor() *descriptorpb.DescriptorProto {
+	m := &model.PkgGoDev{}
+	descriptorProto, err := adapt.NormalizeDescriptor(m.ProtoReflect().Descriptor())
+	if err != nil {
+		panic("PkgData.Descriptor() error: " + err.Error())
 	}
+	return descriptorProto
+}
+
+func (d PkgData) Data() [][]byte {
+	b, err := proto.Marshal(
+		&model.PkgGoDev{
+			Path:    d.path,
+			Version: d.meta.Version,
+			Meta: &model.PkgGoDev_Meta{
+				License:                    d.meta.License,
+				Repository:                 d.meta.Repository,
+				IsModule:                   d.meta.IsModule,
+				IsLatestVersion:            d.meta.IsLatestVersion,
+				IsValidGoMod:               d.meta.IsValidGoMod,
+				WithRedistributableLicense: d.meta.WithRedistributableLicense,
+				IsTaggedVersion:            d.meta.IsTaggedVersion,
+				IsStableVersion:            d.meta.IsStableVersion,
+			},
+			Imports: &model.PkgGoDev_Imports{
+				Std:    d.imports.Std,
+				Nonstd: d.imports.NonStd,
+			},
+			Importedby: d.importedBy,
+			Timestamp:  time.Now().UTC().UnixMilli(),
+		},
+	)
+	if err != nil {
+		panic("PkgData.Data() error: " + err.Error())
+	}
+	return [][]byte{b}
 }
 
 const (

@@ -13,12 +13,20 @@ import (
 	"github.com/kislerdm/gomodanalysis/app/pipeline/dataextraction"
 )
 
-var client pipeline.GBQClient
+var (
+	client    pipeline.GBQClient
+	storePath string
+)
 
 func init() {
 	projectID := os.Getenv("PROJECT_ID")
 	if projectID == "" {
 		log.Fatalln("PROJECT_ID env variable must be set")
+	}
+
+	storePath = os.Getenv("STORE_PATH")
+	if storePath == "" {
+		log.Fatalln("STORE_PATH env variable must be set")
 	}
 
 	var err error
@@ -59,15 +67,21 @@ func main() {
 	}
 
 	var wg sync.WaitGroup
-	data := make(chan dataextraction.PkgData, cntWorkers)
-
+	pool := make(chan struct{}, cntWorkers)
 	for _, m := range listModules {
 		wg.Add(1)
-		go func(m dataextraction.Module, data chan dataextraction.PkgData, wg *sync.WaitGroup) {
-			defer wg.Done()
-			o, _ := dataextraction.ExtractGoPkgData(m.Name, m.Version, &goPkgClient)
-			data <- o
-		}(m, data, &wg)
-
+		pool <- struct{}{}
+		go func(m dataextraction.Module, wg *sync.WaitGroup, writerClient pipeline.GBQClient) {
+			defer func() { wg.Done(); <-pool }()
+			if o, err := dataextraction.ExtractGoPkgData(m.Name, m.Version, &goPkgClient); err == nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_ = client.Write(ctx, o, storePath)
+			} else {
+				time.Sleep(200 * time.Millisecond)
+			}
+		}(m, &wg, client)
 	}
+	wg.Wait()
+
 }
