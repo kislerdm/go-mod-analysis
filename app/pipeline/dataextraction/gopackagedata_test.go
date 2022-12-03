@@ -1,4 +1,4 @@
-package main
+package dataextraction
 
 import (
 	"reflect"
@@ -7,9 +7,9 @@ import (
 
 func TestExtractGoPkgData(t *testing.T) {
 	type args struct {
-		name       string
-		version    string
-		httpClient HttpClient
+		name    string
+		version string
+		c       *GoPackagesClient
 	}
 	tests := []struct {
 		name    string
@@ -20,9 +20,9 @@ func TestExtractGoPkgData(t *testing.T) {
 		{
 			name: "happy path: bar",
 			args: args{
-				name:       "bar",
-				version:    "",
-				httpClient: &mockHTTP{},
+				name:    "bar",
+				version: "",
+				c:       &GoPackagesClient{&mockHTTP{}},
 			},
 			want: PkgData{
 				path: "bar",
@@ -90,11 +90,21 @@ func TestExtractGoPkgData(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "unhappy path: package not found",
+			args: args{
+				name:    "qux",
+				version: "",
+				c:       &GoPackagesClient{&mockHTTP{}},
+			},
+			want:    PkgData{},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				got, err := ExtractGoPkgData(tt.args.name, tt.args.version, tt.args.httpClient)
+				got, err := ExtractGoPkgData(tt.args.name, tt.args.version, tt.args.c)
 				if (err != nil) != tt.wantErr {
 					t.Errorf("ExtractGoPkgData() error = %v, wantErr %v", err, tt.wantErr)
 					return

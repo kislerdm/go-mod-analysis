@@ -1,4 +1,4 @@
-package main
+package dataextraction
 
 import (
 	"errors"
@@ -9,6 +9,15 @@ import (
 
 	"golang.org/x/net/html"
 )
+
+type ErrGoPackageClient struct {
+	StatusCode int
+	Msg        string
+}
+
+func (e ErrGoPackageClient) Error() string {
+	return "[StatusCode:" + strconv.Itoa(e.StatusCode) + "] " + e.Msg
+}
 
 type HttpClient interface {
 	Get(url string) (*http.Response, error)
@@ -29,13 +38,20 @@ type ModuleImports struct {
 // The name with version concatenated with the @ sign is acceptable: {{name}}@{{version}}
 func (c GoPackagesClient) GetImports(name string) (ModuleImports, error) {
 	r, err := c.get(name + "?tag=imports")
-	defer func() { _ = r.Close() }()
+	defer func() {
+		if r != nil {
+			_ = r.Close()
+		}
+	}()
 	if err != nil {
 		return ModuleImports{}, err
 	}
 	o, err := parseHTMLGoPackageImports(r)
 	if err != nil {
-		return ModuleImports{}, err
+		return ModuleImports{}, ErrGoPackageClient{
+			StatusCode: 0,
+			Msg:        err.Error(),
+		}
 	}
 	return o, nil
 }
@@ -109,13 +125,20 @@ type ModuleImportedBy []string
 // The name with version concatenated with the @ sign is acceptable: {{name}}@{{version}}
 func (c GoPackagesClient) GetImportedBy(name string) (ModuleImportedBy, error) {
 	r, err := c.get(name + "?tag=importedby")
-	defer func() { _ = r.Close() }()
+	defer func() {
+		if r != nil {
+			_ = r.Close()
+		}
+	}()
 	if err != nil {
 		return ModuleImportedBy{}, err
 	}
 	o, err := parseHTMLGoPackageImportedBy(r)
 	if err != nil {
-		return ModuleImportedBy{}, err
+		return ModuleImportedBy{}, ErrGoPackageClient{
+			StatusCode: 0,
+			Msg:        err.Error(),
+		}
 	}
 	return o, nil
 }
@@ -167,14 +190,21 @@ type Meta struct {
 // GetMeta extracts the module's metadata:
 func (c GoPackagesClient) GetMeta(name string) (Meta, error) {
 	r, err := c.get(name)
-	defer func() { _ = r.Close() }()
+	defer func() {
+		if r != nil {
+			_ = r.Close()
+		}
+	}()
 	if err != nil {
 		return Meta{}, err
 	}
 
 	o, err := parseHTMLGoPackageMain(r)
 	if err != nil {
-		return Meta{}, err
+		return Meta{}, ErrGoPackageClient{
+			StatusCode: 0,
+			Msg:        err.Error(),
+		}
 	}
 	return o, nil
 }
@@ -268,11 +298,17 @@ func (c GoPackagesClient) get(route string) (io.ReadCloser, error) {
 	const URL = "https://pkg.go.dev"
 	res, err := c.HTTPClient.Get(URL + "/" + route)
 	if err != nil {
-		return nil, err
+		return nil, ErrGoPackageClient{
+			StatusCode: -1,
+			Msg:        err.Error(),
+		}
 	}
 
 	if res.StatusCode > 209 {
-		return nil, errors.New(res.Status + "; status code: " + strconv.Itoa(res.StatusCode))
+		return res.Body, ErrGoPackageClient{
+			StatusCode: res.StatusCode,
+			Msg:        res.Status,
+		}
 	}
 
 	return res.Body, nil

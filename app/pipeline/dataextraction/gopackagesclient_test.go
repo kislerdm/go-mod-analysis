@@ -1,4 +1,4 @@
-package main
+package dataextraction
 
 import (
 	"bytes"
@@ -37,12 +37,12 @@ func (c mockHTTP) Get(s string) (*http.Response, error) {
 		return &http.Response{
 			Status:     "Not Found",
 			StatusCode: http.StatusNotFound,
-		}, err
+		}, nil
 	default:
 		return &http.Response{
-			Status:     "Error",
+			Status:     err.Error(),
 			StatusCode: http.StatusInternalServerError,
-		}, err
+		}, nil
 	}
 }
 

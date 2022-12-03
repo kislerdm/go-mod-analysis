@@ -1,4 +1,4 @@
-package main
+package dataextraction
 
 import (
 	"net/http"
@@ -38,64 +38,90 @@ func (d PkgData) ToGBQ() *model.PkgGoDev {
 	}
 }
 
-type errArr []error
+const (
+	errPkgTypeMain       = "pkg.go.dev/main"
+	errPkgTypeImports    = "pkg.go.dev/imports"
+	errPkgTypeImportedBy = "pkg.go.dev/importedby"
+)
 
-func (e errArr) Error() string {
+type errPkg struct {
+	v map[string]ErrGoPackageClient
+	m *sync.Mutex
+}
+
+func (e errPkg) Add(t string, err error) {
+	e.m.Lock()
+	er, ok := err.(ErrGoPackageClient)
+	if !ok {
+		panic("errPkg.Add(): wrong error type")
+	}
+	e.v[t] = er
+	e.m.Unlock()
+}
+
+func (e errPkg) Error() string {
 	o := ""
-	for _, err := range e {
-		if err != nil {
-			o += err.Error() + "\n"
-		}
+	for k, v := range e.v {
+		o += "[Type:" + k + "]" + v.Error() + "\n"
 	}
 	return o
 }
 
+func (e errPkg) IsNil() bool {
+	return len(e.v) == 0
+}
+
 // ExtractGoPkgData extracts module's data from https://pkg.go.dev
-func ExtractGoPkgData(name, version string, httpClient HttpClient) (PkgData, error) {
+func ExtractGoPkgData(name, version string, c *GoPackagesClient) (PkgData, error) {
 	if version != "" {
 		name += "@" + version
 	}
 
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 60 * time.Second}
+	if c == nil {
+		c = &GoPackagesClient{&http.Client{Timeout: 60 * time.Second}}
 	}
-	c := GoPackagesClient{httpClient}
 
 	var wg sync.WaitGroup
 	wg.Add(3)
-	errs := make(chan error, 3)
+	errs := errPkg{
+		v: map[string]ErrGoPackageClient{},
+		m: &sync.Mutex{},
+	}
 
 	o := PkgData{path: name}
 
-	go func(name string, wg *sync.WaitGroup, e chan error, o *PkgData) {
+	go func(name string, wg *sync.WaitGroup, e errPkg, o *PkgData) {
 		defer wg.Done()
 		var err error
 		o.meta, err = c.GetMeta(name)
-		e <- err
+		if err != nil {
+			errs.Add(errPkgTypeMain, err)
+		}
 	}(name, &wg, errs, &o)
 
-	go func(name string, wg *sync.WaitGroup, e chan error, o *PkgData) {
+	go func(name string, wg *sync.WaitGroup, e errPkg, o *PkgData) {
 		defer wg.Done()
 		var err error
 		o.imports, err = c.GetImports(name)
-		e <- err
+		if err != nil {
+			errs.Add(errPkgTypeImports, err)
+		}
 	}(name, &wg, errs, &o)
 
-	go func(name string, wg *sync.WaitGroup, e chan error, o *PkgData) {
+	go func(name string, wg *sync.WaitGroup, e errPkg, o *PkgData) {
 		defer wg.Done()
 		var err error
 		o.importedBy, err = c.GetImportedBy(name)
-		e <- err
+		if err != nil {
+			errs.Add(errPkgTypeImportedBy, err)
+		}
 	}(name, &wg, errs, &o)
 
 	wg.Wait()
 
-	//var ee errArr
-	//for e := range errs {
-	//	if e != nil {
-	//		ee = append(ee, e)
-	//	}
-	//}
+	if errs.IsNil() {
+		return o, nil
+	}
 
-	return o, nil
+	return PkgData{}, errs
 }
