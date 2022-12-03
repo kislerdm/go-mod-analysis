@@ -47,7 +47,7 @@ func (d PkgData) Data() [][]byte {
 				Nonstd: d.imports.NonStd,
 			},
 			Importedby: d.importedBy,
-			Timestamp:  time.Now().UTC().UnixMilli(),
+			Timestamp:  time.Now().UTC().UnixMicro(),
 		},
 	)
 	if err != nil {
@@ -91,6 +91,8 @@ func (e errPkg) IsNil() bool {
 
 // ExtractGoPkgData extracts module's data from https://pkg.go.dev
 func ExtractGoPkgData(name, version string, c *GoPackagesClient) (PkgData, error) {
+	o := PkgData{path: name}
+
 	if version != "" {
 		name += "@" + version
 	}
@@ -105,8 +107,6 @@ func ExtractGoPkgData(name, version string, c *GoPackagesClient) (PkgData, error
 		v: map[string]ErrGoPackageClient{},
 		m: &sync.Mutex{},
 	}
-
-	o := PkgData{path: name}
 
 	go func(name string, wg *sync.WaitGroup, e errPkg, o *PkgData) {
 		defer wg.Done()
