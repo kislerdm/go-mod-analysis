@@ -76,12 +76,14 @@ func main() {
 			if o, err := dataextraction.ExtractGoPkgData(m.Name, m.Version, &goPkgClient); err == nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
-				_ = client.Write(ctx, o, storePath)
+				if err := client.Write(ctx, o, storePath); err != nil {
+					log.Println("client.Write(): " + err.Error())
+				}
 			} else {
+				log.Println("dataextraction.ExtractGoPkgData(): " + err.Error())
 				time.Sleep(200 * time.Millisecond)
 			}
 		}(m, &wg, client)
 	}
 	wg.Wait()
-
 }
