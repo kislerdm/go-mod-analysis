@@ -39,7 +39,7 @@ func init() {
 func main() {
 	defer func() { _ = client.Close() }()
 
-	listModules, err := dataextraction.ListModulesToFetch(client)
+	listModules, err := dataextraction.ListModulesToFetch(context.Background(), client)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -77,10 +77,10 @@ func main() {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				if err := client.Write(ctx, o, storePath); err != nil {
-					log.Println("client.Write(): " + err.Error())
+					log.Println("[pkg:" + m.Name + "] client.Write(): " + err.Error())
 				}
 			} else {
-				log.Println("dataextraction.ExtractGoPkgData(): " + err.Error())
+				log.Println("[pkg:" + m.Name + "] dataextraction.ExtractGoPkgData(): " + err.Error())
 				time.Sleep(200 * time.Millisecond)
 			}
 		}(m, &wg, client)

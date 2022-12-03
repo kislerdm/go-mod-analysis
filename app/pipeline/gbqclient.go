@@ -76,7 +76,7 @@ func (c gbq) Read(ctx context.Context, query string) (DataReader, error) {
 
 	var o DataReader
 	for {
-		var row []interface{}
+		var row []bigquery.Value
 		err := it.Next(&row)
 		if err == iterator.Done {
 			break
@@ -84,7 +84,12 @@ func (c gbq) Read(ctx context.Context, query string) (DataReader, error) {
 		if err != nil {
 			return nil, err
 		}
-		o = append(o, row)
+
+		var tmp []interface{}
+		for _, v := range row {
+			tmp = append(tmp, v)
+		}
+		o = append(o, tmp)
 	}
 
 	return o, nil
