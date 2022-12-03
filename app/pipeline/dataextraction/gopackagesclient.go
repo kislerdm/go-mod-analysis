@@ -37,7 +37,7 @@ type ModuleImports struct {
 // GetImports extracts the modules imported by the given module identified by the name.
 // The name with version concatenated with the @ sign is acceptable: {{name}}@{{version}}
 func (c GoPackagesClient) GetImports(name string) (ModuleImports, error) {
-	r, err := c.get(name + "?tag=imports")
+	r, err := c.get(name + "?tab=imports")
 	defer func() {
 		if r != nil {
 			_ = r.Close()
@@ -124,7 +124,7 @@ type ModuleImportedBy []string
 // GetImportedBy extracts the modules importing the given module identified by the name.
 // The name with version concatenated with the @ sign is acceptable: {{name}}@{{version}}
 func (c GoPackagesClient) GetImportedBy(name string) (ModuleImportedBy, error) {
-	r, err := c.get(name + "?tag=importedby")
+	r, err := c.get(name + "?tab=importedby")
 	defer func() {
 		if r != nil {
 			_ = r.Close()

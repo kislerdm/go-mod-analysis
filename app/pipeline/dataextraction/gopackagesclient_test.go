@@ -22,8 +22,8 @@ func (c mockHTTP) Get(s string) (*http.Response, error) {
 		return nil, err
 	}
 	p := "main"
-	if len(u.Query()["tag"]) > 0 {
-		p = u.Query()["tag"][0]
+	if len(u.Query()["tab"]) > 0 {
+		p = u.Query()["tab"][0]
 	}
 	b, err := fixtures.ReadFile("fixtures" + u.Path + "/" + p + ".html")
 	switch err {
@@ -74,7 +74,7 @@ func TestGoPackagesClient_get(t *testing.T) {
 			name:   "go-dockerclient: imports",
 			fields: fields{HTTPClient: &mockHTTP{}},
 			args: args{
-				route: "go-dockerclient?tag=imports",
+				route: "go-dockerclient?tab=imports",
 			},
 			want:    io.NopCloser(bytes.NewReader(wantImports)),
 			wantErr: false,
@@ -83,7 +83,7 @@ func TestGoPackagesClient_get(t *testing.T) {
 			name:   "go-dockerclient: importedby",
 			fields: fields{HTTPClient: &mockHTTP{}},
 			args: args{
-				route: "go-dockerclient?tag=importedby",
+				route: "go-dockerclient?tab=importedby",
 			},
 			want:    io.NopCloser(bytes.NewReader(wantImportedBy)),
 			wantErr: false,
@@ -92,7 +92,7 @@ func TestGoPackagesClient_get(t *testing.T) {
 			name:   "not-found-package: importedby",
 			fields: fields{HTTPClient: &mockHTTP{}},
 			args: args{
-				route: "not-found-package?tag=importedby",
+				route: "not-found-package?tab=importedby",
 			},
 			want:    nil,
 			wantErr: true,
