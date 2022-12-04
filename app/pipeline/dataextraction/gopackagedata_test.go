@@ -97,12 +97,7 @@ func TestExtractGoPkgData(t *testing.T) {
 				version: "",
 				c:       NewGoPackagesClient(mockHTTP{}, 1),
 			},
-			want: PkgData{
-				path:       "qux",
-				meta:       Meta{},
-				imports:    ModuleImports{},
-				importedBy: nil,
-			},
+			want:    PkgData{path: "qux"},
 			wantErr: true,
 		},
 	}

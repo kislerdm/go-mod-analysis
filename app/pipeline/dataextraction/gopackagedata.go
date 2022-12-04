@@ -151,5 +151,5 @@ func ExtractGoPkgData(name, version string, c *GoPackagesClient) (PkgData, error
 		return o, nil
 	}
 
-	return o, errs
+	return PkgData{path: name}, errs
 }

@@ -168,7 +168,6 @@ func main() {
 				}
 
 				Log.Warning("[pkg:" + m.Name + "] fetch error: " + err.Error())
-
 				if err := srore(m, o); err != nil {
 					Log.Error("[pkg:" + m.Name + "] gbq store error: " + err.Error())
 					break
