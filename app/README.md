@@ -17,7 +17,7 @@ make help
 
 ## ETL Pipeline
 
-- [Makefile](pipeline/Makefile):
+- [Makefile](Makefile):
 - [Codebase](pipeline)
 
 ### Indexmodules

@@ -159,14 +159,13 @@ func parseHTMLGoPackageImports(r io.ReadCloser) (ModuleImports, error) {
 	}
 
 	var o ModuleImports
-	switch len(ulNodesList) {
-	case 1:
-		o.Std = scanUlNodes(ulNodesList[0])
-	case 2:
-		o.NonStd = scanUlNodes(ulNodesList[0])
-		o.Std = scanUlNodes(ulNodesList[1])
-	default:
+	if len(ulNodesList) == 0 {
 		return ModuleImports{}, errors.New("unknown HTML content")
+	}
+
+	o.Std = scanUlNodes(ulNodesList[len(ulNodesList)-1])
+	for _, l := range ulNodesList[:len(ulNodesList)-1] {
+		o.NonStd = append(o.NonStd, scanUlNodes(l)...)
 	}
 
 	return o, nil

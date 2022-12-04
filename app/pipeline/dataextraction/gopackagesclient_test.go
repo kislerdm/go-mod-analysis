@@ -410,6 +410,29 @@ func TestGoPackagesClient_GetImports(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name:   "happy path: nested imports",
+			fields: fields{mockHTTP{}, 1},
+			args:   args{"github.com/hzysmail/multiple-knapsack-problem"},
+			want: ModuleImports{
+				Std: []string{
+					"bufio",
+					"fmt",
+					"io/ioutil",
+					"math",
+					"os",
+					"strconv",
+					"strings",
+					"time",
+				},
+				NonStd: []string{
+					"github.com/logrusorgru/aurora",
+					"github.com/alexflint/go-arg",
+					"github.com/hzysmail/multiple-knapsack-problem/knapsack",
+				},
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(

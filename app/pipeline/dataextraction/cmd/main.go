@@ -59,6 +59,10 @@ func (l *logger) Debug(msg string) {
 	l.printer("DEBUG", l.wOut, msg)
 }
 
+func (l *logger) Warning(msg string) {
+	l.printer("WARNING", l.wOut, msg)
+}
+
 func (l *logger) time() string {
 	return "[" + time.Now().UTC().Format(time.RFC3339Nano) + "]"
 }
@@ -105,7 +109,6 @@ func main() {
 				TLSHandshakeTimeout: 30 * time.Second,
 				DisableKeepAlives:   false,
 				DisableCompression:  false,
-				MaxIdleConns:        cntWorkers,
 			},
 			Timeout: 60 * time.Second,
 		},
@@ -131,30 +134,48 @@ func main() {
 				) + " ms.",
 			)
 
+			srore := func(m dataextraction.Module, o dataextraction.PkgData) error {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				Log.Info("[pkg:" + m.Name + "] store start")
+				t0 = time.Now()
+
+				if err := client.Write(ctx, o, storePath); err != nil {
+					return err
+				}
+
+				Log.Info(
+					"[pkg:" + m.Name + "] store ended after " + strconv.FormatInt(
+						time.Since(t0).Milliseconds(), 10,
+					) + " ms.",
+				)
+
+				return nil
+			}
+
 			switch err.(type) {
-			case nil, dataextraction.ErrExtractGoPkgData:
-				if err != nil {
+			case nil:
+				if err := srore(m, o); err != nil {
+					Log.Error("[pkg:" + m.Name + "] gbq store error: " + err.Error())
+					break
+				}
+
+			case dataextraction.ErrExtractGoPkgData:
+				if !err.(dataextraction.ErrExtractGoPkgData).IsHTTPStatus(http.StatusNotFound) {
 					Log.Error("[pkg:" + m.Name + "] fetch error: " + err.Error())
+					return
 				}
 
-				if err == nil || err.(dataextraction.ErrExtractGoPkgData).IsHTTPStatus(http.StatusNotFound) {
-					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-					defer cancel()
+				Log.Warning("[pkg:" + m.Name + "] fetch error: " + err.Error())
 
-					Log.Info("[pkg:" + m.Name + "] store start")
-					t0 = time.Now()
-
-					if err := client.Write(ctx, o, storePath); err != nil {
-						Log.Error("[pkg:" + m.Name + "] gbq store error: " + err.Error())
-					}
-
-					Log.Info(
-						"[pkg:" + m.Name + "] store ended after " + strconv.FormatInt(
-							time.Since(t0).Milliseconds(), 10,
-						) + " ms.",
-					)
-
+				if err := srore(m, o); err != nil {
+					Log.Error("[pkg:" + m.Name + "] gbq store error: " + err.Error())
+					break
 				}
+
+			default:
+				Log.Error("[pkg:" + m.Name + "] fetch error:\n" + err.Error())
 			}
 
 		}(m, &wg, client)

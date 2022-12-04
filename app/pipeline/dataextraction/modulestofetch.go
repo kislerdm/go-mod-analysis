@@ -3,6 +3,7 @@ package dataextraction
 import (
 	"context"
 	"errors"
+	"os"
 	"strconv"
 
 	"github.com/kislerdm/gomodanalysis/app/pipeline"
@@ -14,10 +15,15 @@ type Module struct {
 
 // ListModulesToFetch lists modules to extract data for.
 func ListModulesToFetch(ctx context.Context, client pipeline.GBQClient) ([]Module, error) {
-	const q = "SELECT DISTINCT a.path " +
+	lim := os.Getenv("LIMIT")
+	if lim == "" {
+		lim = "1000"
+	}
+
+	q := "SELECT DISTINCT a.path " +
 		"FROM `go-mod-analysis.raw.index` AS a " +
 		"LEFT JOIN `go-mod-analysis.raw.pkggodev` AS b USING (path) " +
-		"WHERE b.path IS NULL;"
+		"WHERE b.path IS NULL LIMIT " + lim + ";"
 
 	r, err := client.Read(ctx, q)
 	if err != nil {
