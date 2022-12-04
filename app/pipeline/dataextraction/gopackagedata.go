@@ -62,22 +62,23 @@ const (
 	errPkgTypeImportedBy = "pkg.go.dev/importedby"
 )
 
-type errPkg struct {
+// ErrExtractGoPkgData error returned by ExtractGoPkgData
+type ErrExtractGoPkgData struct {
 	v map[string]ErrGoPackageClient
 	m *sync.Mutex
 }
 
-func (e errPkg) Add(t string, err error) {
+func (e ErrExtractGoPkgData) Add(t string, err error) {
 	e.m.Lock()
 	er, ok := err.(ErrGoPackageClient)
 	if !ok {
-		panic("errPkg.Add(): wrong error type")
+		panic("ErrExtractGoPkgData.Add(): wrong error type")
 	}
 	e.v[t] = er
 	e.m.Unlock()
 }
 
-func (e errPkg) Error() string {
+func (e ErrExtractGoPkgData) Error() string {
 	o := ""
 	for k, v := range e.v {
 		o += "[Type:" + k + "]" + v.Error() + "\n"
@@ -85,8 +86,17 @@ func (e errPkg) Error() string {
 	return o
 }
 
-func (e errPkg) IsNil() bool {
+func (e ErrExtractGoPkgData) IsNil() bool {
 	return len(e.v) == 0
+}
+
+func (e ErrExtractGoPkgData) IsHTTPStatus(status int) bool {
+	for _, err := range e.v {
+		if err.StatusCode == status {
+			return true
+		}
+	}
+	return false
 }
 
 // ExtractGoPkgData extracts module's data from https://pkg.go.dev
@@ -98,42 +108,42 @@ func ExtractGoPkgData(name, version string, c *GoPackagesClient) (PkgData, error
 	}
 
 	if c == nil {
-		c = &GoPackagesClient{&http.Client{Timeout: 60 * time.Second}}
+		c = NewGoPackagesClient(&http.Client{Timeout: 60 * time.Second}, 30)
 	}
 
 	var wg sync.WaitGroup
 	wg.Add(3)
-	errs := errPkg{
+	errs := ErrExtractGoPkgData{
 		v: map[string]ErrGoPackageClient{},
 		m: &sync.Mutex{},
 	}
 
-	go func(name string, wg *sync.WaitGroup, e errPkg, o *PkgData) {
+	go func(name string, wg *sync.WaitGroup, o *PkgData) {
 		defer wg.Done()
 		var err error
 		o.meta, err = c.GetMeta(name)
 		if err != nil {
 			errs.Add(errPkgTypeMain, err)
 		}
-	}(name, &wg, errs, &o)
+	}(name, &wg, &o)
 
-	go func(name string, wg *sync.WaitGroup, e errPkg, o *PkgData) {
+	go func(name string, wg *sync.WaitGroup, o *PkgData) {
 		defer wg.Done()
 		var err error
 		o.imports, err = c.GetImports(name)
 		if err != nil {
 			errs.Add(errPkgTypeImports, err)
 		}
-	}(name, &wg, errs, &o)
+	}(name, &wg, &o)
 
-	go func(name string, wg *sync.WaitGroup, e errPkg, o *PkgData) {
+	go func(name string, wg *sync.WaitGroup, o *PkgData) {
 		defer wg.Done()
 		var err error
 		o.importedBy, err = c.GetImportedBy(name)
 		if err != nil {
 			errs.Add(errPkgTypeImportedBy, err)
 		}
-	}(name, &wg, errs, &o)
+	}(name, &wg, &o)
 
 	wg.Wait()
 
@@ -141,5 +151,5 @@ func ExtractGoPkgData(name, version string, c *GoPackagesClient) (PkgData, error
 		return o, nil
 	}
 
-	return PkgData{}, errs
+	return PkgData{path: o.path}, errs
 }

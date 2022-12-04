@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"golang.org/x/net/html"
 )
@@ -23,9 +25,61 @@ type HttpClient interface {
 	Get(url string) (*http.Response, error)
 }
 
+type backoff struct {
+	v   map[string]int8
+	max int8
+	mu  *sync.RWMutex
+}
+
+func (b backoff) multiplier(route string) int8 {
+	b.mu.RLock()
+	multiplier, ok := b.v[route]
+	b.mu.RUnlock()
+	if !ok {
+		multiplier = 0
+	}
+	return multiplier
+}
+
+func (b backoff) Reset(route string) {
+	b.mu.Lock()
+	delete(b.v, route)
+	b.mu.Unlock()
+}
+
+func (b backoff) Sleep(route string) error {
+	m := b.multiplier(route)
+	if m > b.max {
+		delete(b.v, route)
+		return errors.New("max backoff duration was reached")
+	}
+	time.Sleep(time.Duration(m) * time.Second)
+	return nil
+}
+
+func (b backoff) Increment(route string) {
+	base := b.multiplier(route)
+	b.mu.Lock()
+	b.v[route] = base + 1
+	b.mu.Unlock()
+}
+
 // GoPackagesClient client to extract data from https://pkg.go.dev.
 type GoPackagesClient struct {
 	HTTPClient HttpClient
+	backoff    backoff
+}
+
+// NewGoPackagesClient init a client to fetch data from https://pkg.go.dev.
+func NewGoPackagesClient(httpClient HttpClient, maxBackoffSec int8) *GoPackagesClient {
+	return &GoPackagesClient{
+		HTTPClient: httpClient,
+		backoff: backoff{
+			v:   map[string]int8{},
+			max: maxBackoffSec,
+			mu:  &sync.RWMutex{},
+		},
+	}
 }
 
 // ModuleImports contains the modules imported by the given module.
@@ -296,6 +350,14 @@ func parseHTMLGoPackageMain(r io.ReadCloser) (Meta, error) {
 
 func (c GoPackagesClient) get(route string) (io.ReadCloser, error) {
 	const URL = "https://pkg.go.dev"
+
+	if err := c.backoff.Sleep(route); err != nil {
+		return nil, ErrGoPackageClient{
+			StatusCode: 0,
+			Msg:        err.Error(),
+		}
+	}
+
 	res, err := c.HTTPClient.Get(URL + "/" + route)
 	if err != nil {
 		return nil, ErrGoPackageClient{
@@ -305,11 +367,19 @@ func (c GoPackagesClient) get(route string) (io.ReadCloser, error) {
 	}
 
 	if res.StatusCode > 209 {
+		if res.StatusCode == http.StatusTooManyRequests {
+			c.backoff.Increment(route)
+			return c.get(route)
+		}
+
+		c.backoff.Reset(route)
+
 		return res.Body, ErrGoPackageClient{
 			StatusCode: res.StatusCode,
 			Msg:        res.Status,
 		}
 	}
 
+	c.backoff.Reset(route)
 	return res.Body, nil
 }

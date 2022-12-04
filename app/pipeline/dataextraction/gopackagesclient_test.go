@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -21,22 +22,32 @@ func (c mockHTTP) Get(s string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	p := "main"
 	if len(u.Query()["tab"]) > 0 {
 		p = u.Query()["tab"][0]
 	}
+
+	if len(u.Query()["mimic_429"]) > 0 {
+		return &http.Response{
+			Status:     "Mimic Too Many Requests",
+			StatusCode: http.StatusTooManyRequests,
+		}, nil
+	}
+
 	b, err := fixtures.ReadFile("fixtures" + u.Path + "/" + p + ".html")
-	switch err {
+	switch err.(type) {
 	case nil:
 		return &http.Response{
 			Status:     "OK",
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(bytes.NewReader(b)),
 		}, nil
-	case fs.ErrNotExist:
+	case *fs.PathError:
 		return &http.Response{
 			Status:     "Not Found",
 			StatusCode: http.StatusNotFound,
+			Body:       io.NopCloser(strings.NewReader("not found")),
 		}, nil
 	default:
 		return &http.Response{
@@ -58,7 +69,8 @@ func TestGoPackagesClient_get(t *testing.T) {
 	}
 
 	type fields struct {
-		HTTPClient HttpClient
+		HTTPClient    HttpClient
+		maxBackoffSec int8
 	}
 	type args struct {
 		route string
@@ -72,7 +84,7 @@ func TestGoPackagesClient_get(t *testing.T) {
 	}{
 		{
 			name:   "go-dockerclient: imports",
-			fields: fields{HTTPClient: &mockHTTP{}},
+			fields: fields{HTTPClient: &mockHTTP{}, maxBackoffSec: 1},
 			args: args{
 				route: "go-dockerclient?tab=imports",
 			},
@@ -81,7 +93,7 @@ func TestGoPackagesClient_get(t *testing.T) {
 		},
 		{
 			name:   "go-dockerclient: importedby",
-			fields: fields{HTTPClient: &mockHTTP{}},
+			fields: fields{HTTPClient: &mockHTTP{}, maxBackoffSec: 1},
 			args: args{
 				route: "go-dockerclient?tab=importedby",
 			},
@@ -90,9 +102,27 @@ func TestGoPackagesClient_get(t *testing.T) {
 		},
 		{
 			name:   "not-found-package: importedby",
-			fields: fields{HTTPClient: &mockHTTP{}},
+			fields: fields{HTTPClient: &mockHTTP{}, maxBackoffSec: 1},
 			args: args{
 				route: "not-found-package?tab=importedby",
+			},
+			want:    io.NopCloser(strings.NewReader("not found")),
+			wantErr: true,
+		},
+		{
+			name:   "unhappy path: faulty url",
+			fields: fields{HTTPClient: &mockHTTP{}, maxBackoffSec: 1},
+			args: args{
+				route: "#%%%",
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:   "unhappy path: 429",
+			fields: fields{HTTPClient: &mockHTTP{}, maxBackoffSec: 1},
+			args: args{
+				route: "?mimic_429",
 			},
 			want:    nil,
 			wantErr: true,
@@ -101,9 +131,7 @@ func TestGoPackagesClient_get(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				c := GoPackagesClient{
-					HTTPClient: tt.fields.HTTPClient,
-				}
+				c := NewGoPackagesClient(tt.fields.HTTPClient, tt.fields.maxBackoffSec)
 				got, err := c.get(tt.args.route)
 				if (err != nil) != tt.wantErr {
 					t.Errorf("get() error = %v, wantErr %v", err, tt.wantErr)
@@ -163,7 +191,8 @@ func Test_parseHTMLGoPackageImportedBy(t *testing.T) {
 
 func TestGoPackagesClient_GetImportedBy(t *testing.T) {
 	type fields struct {
-		HTTPClient HttpClient
+		HTTPClient    HttpClient
+		maxBackoffSec int8
 	}
 	type args struct {
 		name string
@@ -177,7 +206,7 @@ func TestGoPackagesClient_GetImportedBy(t *testing.T) {
 	}{
 		{
 			name:   "happy path: 8 packages",
-			fields: fields{mockHTTP{}},
+			fields: fields{mockHTTP{}, 1},
 			args:   args{"bar"},
 			want: ModuleImportedBy{
 				"bitbucket.org/blackxcloudeng/infra/common/docker",
@@ -195,9 +224,7 @@ func TestGoPackagesClient_GetImportedBy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				c := GoPackagesClient{
-					HTTPClient: tt.fields.HTTPClient,
-				}
+				c := NewGoPackagesClient(tt.fields.HTTPClient, tt.fields.maxBackoffSec)
 				got, err := c.GetImportedBy(tt.args.name)
 				if (err != nil) != tt.wantErr {
 					t.Errorf("GetImportedBy() error = %v, wantErr %v", err, tt.wantErr)
@@ -288,7 +315,8 @@ func Test_parseHTMLGoPackageImports(t *testing.T) {
 
 func TestGoPackagesClient_GetImports(t *testing.T) {
 	type fields struct {
-		HTTPClient HttpClient
+		HTTPClient    HttpClient
+		maxBackoffSec int8
 	}
 	type args struct {
 		name string
@@ -302,7 +330,7 @@ func TestGoPackagesClient_GetImports(t *testing.T) {
 	}{
 		{
 			name:   "happy path: std only",
-			fields: fields{mockHTTP{}},
+			fields: fields{mockHTTP{}, 1},
 			args:   args{"foo"},
 			want: ModuleImports{
 				Std: []string{
@@ -338,7 +366,7 @@ func TestGoPackagesClient_GetImports(t *testing.T) {
 		},
 		{
 			name:   "happy path: std and non-std",
-			fields: fields{mockHTTP{}},
+			fields: fields{mockHTTP{}, 1},
 			args:   args{"bar"},
 			want: ModuleImports{
 				Std: []string{
@@ -386,9 +414,7 @@ func TestGoPackagesClient_GetImports(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				c := GoPackagesClient{
-					HTTPClient: tt.fields.HTTPClient,
-				}
+				c := NewGoPackagesClient(tt.fields.HTTPClient, tt.fields.maxBackoffSec)
 				got, err := c.GetImports(tt.args.name)
 				if (err != nil) != tt.wantErr {
 					t.Errorf("GetImports() error = %v, wantErr %v", err, tt.wantErr)
@@ -450,7 +476,8 @@ func Test_parseHTMLGoPackageMain(t *testing.T) {
 
 func TestGoPackagesClient_GetMeta(t *testing.T) {
 	type fields struct {
-		HTTPClient HttpClient
+		HTTPClient    HttpClient
+		maxBackoffSec int8
 	}
 	type args struct {
 		name string
@@ -464,7 +491,7 @@ func TestGoPackagesClient_GetMeta(t *testing.T) {
 	}{
 		{
 			name:   "happy path",
-			fields: fields{mockHTTP{}},
+			fields: fields{mockHTTP{}, 1},
 			args:   args{"go-dockerclient"},
 			want: Meta{
 				Version:                    "v1.9.0",
@@ -483,9 +510,7 @@ func TestGoPackagesClient_GetMeta(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				c := GoPackagesClient{
-					HTTPClient: tt.fields.HTTPClient,
-				}
+				c := NewGoPackagesClient(tt.fields.HTTPClient, tt.fields.maxBackoffSec)
 				got, err := c.GetMeta(tt.args.name)
 				if (err != nil) != tt.wantErr {
 					t.Errorf("GetMeta() error = %v, wantErr %v", err, tt.wantErr)

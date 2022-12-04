@@ -17,7 +17,7 @@ func ListModulesToFetch(ctx context.Context, client pipeline.GBQClient) ([]Modul
 	const q = "SELECT DISTINCT a.path " +
 		"FROM `go-mod-analysis.raw.index` AS a " +
 		"LEFT JOIN `go-mod-analysis.raw.pkggodev` AS b USING (path) " +
-		"WHERE b.path IS NULL LIMIT 2;"
+		"WHERE b.path IS NULL;"
 
 	r, err := client.Read(ctx, q)
 	if err != nil {

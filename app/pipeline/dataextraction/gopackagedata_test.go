@@ -22,7 +22,7 @@ func TestExtractGoPkgData(t *testing.T) {
 			args: args{
 				name:    "bar",
 				version: "",
-				c:       &GoPackagesClient{&mockHTTP{}},
+				c:       NewGoPackagesClient(mockHTTP{}, 1),
 			},
 			want: PkgData{
 				path: "bar",
@@ -91,13 +91,18 @@ func TestExtractGoPkgData(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "unhappy path: package not found",
+			name: "happy path: package not found",
 			args: args{
 				name:    "qux",
 				version: "",
-				c:       &GoPackagesClient{&mockHTTP{}},
+				c:       NewGoPackagesClient(mockHTTP{}, 1),
 			},
-			want:    PkgData{},
+			want: PkgData{
+				path:       "qux",
+				meta:       Meta{},
+				imports:    ModuleImports{},
+				importedBy: nil,
+			},
 			wantErr: true,
 		},
 	}
