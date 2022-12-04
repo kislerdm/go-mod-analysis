@@ -529,6 +529,23 @@ func TestGoPackagesClient_GetMeta(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name:   "happy path: github.com/nuntiodev/hera",
+			fields: fields{mockHTTP{}, 1},
+			args:   args{"github.com/nuntiodev/hera"},
+			want: Meta{
+				Version:                    "v0.2.90",
+				License:                    "",
+				Repository:                 "https://github.com/nuntiodev/hera",
+				IsModule:                   true,
+				IsLatestVersion:            true,
+				IsValidGoMod:               true,
+				WithRedistributableLicense: false,
+				IsTaggedVersion:            true,
+				IsStableVersion:            false,
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(

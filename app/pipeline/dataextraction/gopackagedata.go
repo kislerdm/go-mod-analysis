@@ -1,6 +1,7 @@
 package dataextraction
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -121,6 +122,17 @@ func ExtractGoPkgData(name, version string, c *GoPackagesClient) (PkgData, error
 	go func(name string, wg *sync.WaitGroup, o *PkgData) {
 		defer wg.Done()
 		var err error
+		defer func() {
+			if r := recover(); r != nil {
+				errs.Add(
+					errPkgTypeMain,
+					ErrGoPackageClient{
+						StatusCode: -1,
+						Msg:        fmt.Sprintf("%v", r),
+					},
+				)
+			}
+		}()
 		o.meta, err = c.GetMeta(name)
 		if err != nil {
 			errs.Add(errPkgTypeMain, err)
@@ -130,6 +142,17 @@ func ExtractGoPkgData(name, version string, c *GoPackagesClient) (PkgData, error
 	go func(name string, wg *sync.WaitGroup, o *PkgData) {
 		defer wg.Done()
 		var err error
+		defer func() {
+			if r := recover(); r != nil {
+				errs.Add(
+					errPkgTypeImports,
+					ErrGoPackageClient{
+						StatusCode: -1,
+						Msg:        fmt.Sprintf("%v", r),
+					},
+				)
+			}
+		}()
 		o.imports, err = c.GetImports(name)
 		if err != nil {
 			errs.Add(errPkgTypeImports, err)
@@ -139,6 +162,17 @@ func ExtractGoPkgData(name, version string, c *GoPackagesClient) (PkgData, error
 	go func(name string, wg *sync.WaitGroup, o *PkgData) {
 		defer wg.Done()
 		var err error
+		defer func() {
+			if r := recover(); r != nil {
+				errs.Add(
+					errPkgTypeImportedBy,
+					ErrGoPackageClient{
+						StatusCode: -1,
+						Msg:        fmt.Sprintf("%v", r),
+					},
+				)
+			}
+		}()
 		o.importedBy, err = c.GetImportedBy(name)
 		if err != nil {
 			errs.Add(errPkgTypeImportedBy, err)

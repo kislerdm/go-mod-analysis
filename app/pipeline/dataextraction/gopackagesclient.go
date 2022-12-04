@@ -327,9 +327,11 @@ func parseHTMLGoPackageMain(r io.ReadCloser) (Meta, error) {
 			case "div":
 				for _, a := range n.Attr {
 					if a.Key == "class" && a.Val == "UnitMeta-repo" {
-						for _, aa := range n.FirstChild.NextSibling.Attr {
-							if aa.Key == "href" {
-								o.Repository = aa.Val
+						if n.FirstChild.NextSibling != nil {
+							for _, aa := range n.FirstChild.NextSibling.Attr {
+								if aa.Key == "href" {
+									o.Repository = aa.Val
+								}
 							}
 						}
 					}
